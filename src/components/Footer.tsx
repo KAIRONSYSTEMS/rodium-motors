@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-const BRAND_LOGO = "/Captura%20de%20tela%202026-03-18%20230942.png";
+const BRAND_LOGO = "/logo%20cru.png";
 
 const Footer = () => {
   return (

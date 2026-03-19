@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
-const BRAND_LOGO = "/Captura%20de%20tela%202026-03-18%20230942.png";
+const BRAND_LOGO = "/logo%20cru.png";
 
 const Header = () => {
   const location = useLocation();
