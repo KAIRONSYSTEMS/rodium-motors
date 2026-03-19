@@ -12,7 +12,7 @@ const Footer = () => {
               <img
                 src={BRAND_LOGO}
                 alt="Rodium Cars"
-                className="h-9 w-auto rounded-sm border border-foreground/10 bg-white/90 p-1"
+                className="h-9 w-auto"
               />
               <span className="text-sm font-semibold tracking-[0.2em] text-foreground">RODIUM CARS</span>
             </Link>
