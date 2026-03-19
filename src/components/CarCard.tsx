@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { motion } from "framer-motion";
+import { resolveImageUrl } from "@/lib/storage";
 
 interface CarCardProps {
   id: string;
@@ -30,6 +31,8 @@ const CarCard = ({
   const formatKm = (km: number) =>
     km.toLocaleString("pt-BR") + " km";
 
+  const coverImage = imagens.length > 0 ? resolveImageUrl(imagens[0]) : "";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -43,7 +46,7 @@ const CarCard = ({
           <div className="aspect-[16/9] overflow-hidden">
             {imagens.length > 0 ? (
               <img
-                src={imagens[0]}
+                src={coverImage}
                 alt={`${marca} ${modelo}`}
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 style={{ outline: "1px solid rgba(255,255,255,0.1)", outlineOffset: "-1px" }}

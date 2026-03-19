@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveImageUrl, uploadImageToR2 } from "@/lib/storage";
 import { toast } from "sonner";
 import { Upload, X, Loader2, Check } from "lucide-react";
 import Header from "@/components/Header";
@@ -79,18 +80,8 @@ const Admin = () => {
       // Upload images
       const imageUrls: string[] = [];
       for (const file of images) {
-        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from("car-images")
-          .upload(fileName, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from("car-images")
-          .getPublicUrl(fileName);
-
-        imageUrls.push(urlData.publicUrl);
+        const uploadedUrl = await uploadImageToR2(file);
+        imageUrls.push(resolveImageUrl(uploadedUrl));
       }
 
       // Insert car
@@ -228,6 +219,9 @@ const Admin = () => {
               <label className="mb-1.5 block text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 Imagens
               </label>
+              <p className="text-xs text-muted-foreground">
+                O envio usa Cloudflare R2 via endpoint seguro definido em VITE_R2_UPLOAD_ENDPOINT.
+              </p>
               <div className="mt-2">
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/10 bg-secondary/50 px-6 py-8 transition-colors hover:border-primary/30">
                   <Upload size={20} strokeWidth={1.5} className="text-muted-foreground" />

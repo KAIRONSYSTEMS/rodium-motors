@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import { resolveImageUrl } from "@/lib/storage";
 import type { Car } from "@/lib/types";
 
 const CarDetails = () => {
@@ -63,6 +64,7 @@ const CarDetails = () => {
   }
 
   const imagens = car.imagens || [];
+  const imageUrls = imagens.map((img) => resolveImageUrl(img));
   const whatsappMsg = `Olá! Tenho interesse no ${car.marca} ${car.modelo} ${car.versao || ""} ${car.ano_fabricacao}/${car.ano_modelo}. Gostaria de mais informações.`;
 
   return (
@@ -88,14 +90,14 @@ const CarDetails = () => {
                     style={{ outline: "1px solid rgba(255,255,255,0.1)", outlineOffset: "-1px" }}
                   >
                     <img
-                      src={imagens[selectedImage]}
+                      src={imageUrls[selectedImage]}
                       alt={`${car.marca} ${car.modelo}`}
                       className="h-full w-full object-cover"
                     />
                   </div>
                   {imagens.length > 1 && (
                     <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
-                      {imagens.map((img, i) => (
+                      {imageUrls.map((img, i) => (
                         <button
                           key={i}
                           onClick={() => setSelectedImage(i)}

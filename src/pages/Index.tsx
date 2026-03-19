@@ -20,6 +20,18 @@ const Index = () => {
         .eq("destaque", true)
         .order("created_at", { ascending: false })
         .limit(6);
+
+      if (error?.code === "PGRST204") {
+        const fallback = await supabase
+          .from("cars")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(6);
+
+        if (fallback.error) throw fallback.error;
+        return fallback.data as CarType[];
+      }
+
       if (error) throw error;
       return data as CarType[];
     },

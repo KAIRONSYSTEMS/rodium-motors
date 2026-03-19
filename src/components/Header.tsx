@@ -9,6 +9,7 @@ const Header = () => {
   const links = [
     { href: "/", label: "Início" },
     { href: "/estoque", label: "Acervo" },
+    { href: "/cadastro", label: "Cadastro" },
   ];
 
   return (
