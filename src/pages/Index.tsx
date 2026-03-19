@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Car, Handshake } from "lucide-react";
+import { ArrowRight, ShieldCheck, Car, Handshake } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -38,9 +38,9 @@ const Index = () => {
   });
 
   const services = [
-    { icon: Car, title: "Compra e Venda", desc: "Veículos premium selecionados com critérios rigorosos de qualidade e procedência." },
-    { icon: Handshake, title: "Intermediação", desc: "Assessoria completa na negociação, garantindo segurança e transparência." },
-    { icon: Shield, title: "Blindagem", desc: "Acervo especializado em veículos blindados com certificação e procedência." },
+    { icon: Car, title: "Venda de Veículos", desc: "Acervo premium com seleção criteriosa, histórico e procedência para uma compra segura." },
+    { icon: ShieldCheck, title: "Serviço de Pré-Compra", desc: "Inspeção técnica e avaliação completa antes de fechar negócio, com olhar especialista." },
+    { icon: Handshake, title: "Negociação Assistida", desc: "Acompanhamento na negociação e documentação para reduzir risco e ganhar eficiência." },
   ];
 
   return (

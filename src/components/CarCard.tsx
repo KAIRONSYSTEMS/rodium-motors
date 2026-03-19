@@ -14,6 +14,7 @@ interface CarCardProps {
   blindado: boolean;
   imagens: string[];
   index?: number;
+  imageAspectClass?: string;
 }
 
 const CarCard = ({
@@ -27,6 +28,7 @@ const CarCard = ({
   blindado,
   imagens,
   index = 0,
+  imageAspectClass = "aspect-[16/9]",
 }: CarCardProps) => {
   const formatKm = (km: number) =>
     km.toLocaleString("pt-BR") + " km";
@@ -43,7 +45,7 @@ const CarCard = ({
         <div className="relative overflow-hidden rounded-xl bg-secondary transition-all duration-500 hover:-translate-y-1"
           style={{ boxShadow: "0 0 0 1px rgba(255,255,255,0.05), 0 10px 30px -10px rgba(0,0,0,0.5)" }}
         >
-          <div className="aspect-[16/9] overflow-hidden">
+          <div className={`${imageAspectClass} overflow-hidden`}>
             {imagens.length > 0 ? (
               <img
                 src={coverImage}

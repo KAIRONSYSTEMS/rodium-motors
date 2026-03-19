@@ -1,18 +1,23 @@
 import { Link } from "react-router-dom";
 
+const BRAND_LOGO = "/Captura%20de%20tela%202026-03-18%20230942.png";
+
 const Footer = () => {
   return (
     <footer className="border-t border-foreground/5 bg-background">
       <div className="container py-12 md:py-16">
         <div className="grid gap-8 md:grid-cols-3">
           <div>
-            <Link to="/" className="text-xl font-semibold tracking-tight">
-              <span className="text-foreground">RODIUM</span>
-              <span className="text-primary ml-1">CARS</span>
+            <Link to="/" className="flex w-fit items-center gap-3">
+              <img
+                src={BRAND_LOGO}
+                alt="Rodium Cars"
+                className="h-9 w-auto rounded-sm border border-foreground/10 bg-white/90 p-1"
+              />
+              <span className="text-sm font-semibold tracking-[0.2em] text-foreground">RODIUM CARS</span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground text-pretty">
-              Consultoria especializada em veículos esportivos, premium e blindados. 
-              Excelência em cada detalhe.
+              Venda de veículos esportivos, premium e blindados com atendimento consultivo e serviço técnico de pré-compra.
             </p>
           </div>
 
@@ -26,6 +31,9 @@ const Footer = () => {
               </Link>
               <Link to="/estoque" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
                 Acervo
+              </Link>
+              <Link to="/cadastro" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+                Cadastro
               </Link>
             </nav>
           </div>

@@ -94,7 +94,7 @@ const Estoque = () => {
             <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="animate-pulse rounded-xl bg-secondary">
-                  <div className="aspect-[16/9] bg-muted rounded-t-xl" />
+                  <div className="aspect-[4/3] bg-muted rounded-t-xl" />
                   <div className="p-6 space-y-3">
                     <div className="h-3 w-16 rounded bg-muted" />
                     <div className="h-5 w-40 rounded bg-muted" />
@@ -110,7 +110,7 @@ const Estoque = () => {
           ) : filtered.length > 0 ? (
             <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filtered.map((car, i) => (
-                <CarCard key={car.id} {...car} imagens={car.imagens || []} index={i} />
+                <CarCard key={car.id} {...car} imagens={car.imagens || []} index={i} imageAspectClass="aspect-[4/3]" />
               ))}
             </div>
           ) : (

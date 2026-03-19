@@ -22,7 +22,20 @@ interface CarForm {
   created_at: string;
 }
 
+interface CoverCrop {
+  focusX: number;
+  focusY: number;
+  zoom: number;
+}
+
 const MAX_IMAGES = 30;
+const COVER_OUTPUT_WIDTH = 1200;
+const COVER_OUTPUT_HEIGHT = 900;
+const DEFAULT_COVER_CROP: CoverCrop = {
+  focusX: 50,
+  focusY: 50,
+  zoom: 1,
+};
 
 const initialForm: CarForm = {
   id: "",
@@ -118,6 +131,92 @@ const mutateWithSchemaFallback = async (
   throw new Error("Não foi possível salvar: muitas colunas não existem no schema atual.");
 };
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const loadImageFromFile = (file: File) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Não foi possível ler a imagem para ajustar a capa."));
+    };
+
+    img.src = objectUrl;
+  });
+
+const createCroppedCoverFile = async (file: File, crop: CoverCrop) => {
+  const img = await loadImageFromFile(file);
+  const imageAspect = img.width / img.height;
+  const targetAspect = COVER_OUTPUT_WIDTH / COVER_OUTPUT_HEIGHT;
+
+  let baseCropWidth = img.width;
+  let baseCropHeight = img.height;
+
+  if (imageAspect > targetAspect) {
+    baseCropWidth = img.height * targetAspect;
+  } else {
+    baseCropHeight = img.width / targetAspect;
+  }
+
+  const zoom = clamp(crop.zoom, 1, 2);
+  const cropWidth = baseCropWidth / zoom;
+  const cropHeight = baseCropHeight / zoom;
+
+  const rawCenterX = (crop.focusX / 100) * img.width;
+  const rawCenterY = (crop.focusY / 100) * img.height;
+  const centerX = clamp(rawCenterX, cropWidth / 2, img.width - cropWidth / 2);
+  const centerY = clamp(rawCenterY, cropHeight / 2, img.height - cropHeight / 2);
+
+  const sx = centerX - cropWidth / 2;
+  const sy = centerY - cropHeight / 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = COVER_OUTPUT_WIDTH;
+  canvas.height = COVER_OUTPUT_HEIGHT;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Não foi possível preparar a edição de capa.");
+  }
+
+  ctx.drawImage(
+    img,
+    sx,
+    sy,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    COVER_OUTPUT_WIDTH,
+    COVER_OUTPUT_HEIGHT
+  );
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (generatedBlob) => {
+        if (!generatedBlob) {
+          reject(new Error("Não foi possível gerar a imagem de capa."));
+          return;
+        }
+        resolve(generatedBlob);
+      },
+      "image/jpeg",
+      0.92
+    );
+  });
+
+  const safeName = file.name.replace(/\.[^.]+$/, "").replace(/\s+/g, "-");
+  return new File([blob], `${safeName}-capa.jpg`, { type: "image/jpeg" });
+};
+
 const Cadastro = () => {
   const queryClient = useQueryClient();
 
@@ -126,6 +225,7 @@ const Cadastro = () => {
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
+  const [coverCrop, setCoverCrop] = useState<CoverCrop>(DEFAULT_COVER_CROP);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -160,6 +260,7 @@ const Cadastro = () => {
     setExistingImages([]);
     setNewImages([]);
     setNewPreviews([]);
+    setCoverCrop(DEFAULT_COVER_CROP);
   };
 
   const refreshCars = () => {
@@ -198,6 +299,10 @@ const Cadastro = () => {
       toast.warning(`Somente ${remainingSlots} imagens foram adicionadas para respeitar o limite de ${MAX_IMAGES}.`);
     }
 
+    if (existingImages.length === 0 && newImages.length === 0 && selectedFiles.length > 0) {
+      setCoverCrop(DEFAULT_COVER_CROP);
+    }
+
     setNewImages((prev) => [...prev, ...selectedFiles]);
     selectedFiles.forEach((file) => {
       const reader = new FileReader();
@@ -217,6 +322,10 @@ const Cadastro = () => {
   const removeNewImage = (index: number) => {
     setNewImages((prev) => prev.filter((_, i) => i !== index));
     setNewPreviews((prev) => prev.filter((_, i) => i !== index));
+
+    if (index === 0) {
+      setCoverCrop(DEFAULT_COVER_CROP);
+    }
   };
 
   const loadCarToEdit = (car: Car) => {
@@ -238,11 +347,19 @@ const Cadastro = () => {
     setExistingImages(car.imagens || []);
     setNewImages([]);
     setNewPreviews([]);
+    setCoverCrop(DEFAULT_COVER_CROP);
   };
 
   const uploadNewImages = async () => {
+    const filesToUpload = [...newImages];
+
+    // If there are no existing images, the first selected image becomes the ad cover.
+    if (existingImages.length === 0 && filesToUpload.length > 0) {
+      filesToUpload[0] = await createCroppedCoverFile(filesToUpload[0], coverCrop);
+    }
+
     const uploadedUrls: string[] = [];
-    for (const file of newImages) {
+    for (const file of filesToUpload) {
       const uploadedValue = await uploadImageToR2(file);
       uploadedUrls.push(resolveImageUrl(uploadedValue));
     }
@@ -363,6 +480,9 @@ const Cadastro = () => {
 
   const inputClass =
     "w-full rounded-lg border border-foreground/10 bg-secondary px-4 py-3 text-sm text-foreground placeholder-muted-foreground outline-none focus:ring-1 focus:ring-primary";
+
+  const showCoverCropControls = existingImages.length === 0 && newPreviews.length > 0;
+  const firstCoverPreview = newPreviews[0] || "";
 
   return (
     <div className="min-h-screen bg-background">
@@ -523,6 +643,71 @@ const Cadastro = () => {
                     <span className="text-sm text-muted-foreground">Adicionar fotos</span>
                     <input type="file" accept="image/*" multiple onChange={handleNewImages} className="hidden" />
                   </label>
+
+                  {showCoverCropControls && (
+                    <div className="mt-4 rounded-lg border border-foreground/10 bg-background/50 p-4">
+                      <p className="text-xs font-medium uppercase tracking-widest text-primary">Ajuste da capa (1a foto)</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Defina enquadramento para a foto de capa da pré-visualização no acervo.
+                      </p>
+
+                      <div className="mt-3 overflow-hidden rounded-lg border border-foreground/10 bg-muted aspect-[4/3]">
+                        <img
+                          src={firstCoverPreview}
+                          alt="Prévia da capa"
+                          className="h-full w-full object-cover"
+                          style={{
+                            objectPosition: `${coverCrop.focusX}% ${coverCrop.focusY}%`,
+                            transform: `scale(${coverCrop.zoom})`,
+                            transformOrigin: "center",
+                          }}
+                        />
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <label className="text-xs text-muted-foreground">
+                          Horizontal
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={coverCrop.focusX}
+                            onChange={(e) =>
+                              setCoverCrop((prev) => ({ ...prev, focusX: Number(e.target.value) }))
+                            }
+                            className="mt-1 w-full"
+                          />
+                        </label>
+                        <label className="text-xs text-muted-foreground">
+                          Vertical
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={coverCrop.focusY}
+                            onChange={(e) =>
+                              setCoverCrop((prev) => ({ ...prev, focusY: Number(e.target.value) }))
+                            }
+                            className="mt-1 w-full"
+                          />
+                        </label>
+                        <label className="text-xs text-muted-foreground">
+                          Zoom
+                          <input
+                            type="range"
+                            min={1}
+                            max={2}
+                            step={0.01}
+                            value={coverCrop.zoom}
+                            onChange={(e) =>
+                              setCoverCrop((prev) => ({ ...prev, zoom: Number(e.target.value) }))
+                            }
+                            className="mt-1 w-full"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   {existingImages.length > 0 && (
                     <div className="mt-4">

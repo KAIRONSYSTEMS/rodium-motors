@@ -2,6 +2,8 @@ import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
+const BRAND_LOGO = "/Captura%20de%20tela%202026-03-18%20230942.png";
+
 const Header = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -9,15 +11,21 @@ const Header = () => {
   const links = [
     { href: "/", label: "Início" },
     { href: "/estoque", label: "Acervo" },
-    { href: "/cadastro", label: "Cadastro" },
   ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-foreground/5 bg-background/80 backdrop-blur-xl">
       <div className="container flex h-16 items-center justify-between md:h-20">
-        <Link to="/" className="text-xl font-semibold tracking-tight">
-          <span className="text-foreground">RODIUM</span>
-          <span className="text-primary ml-1">CARS</span>
+        <Link to="/" className="flex items-center gap-3">
+          <img
+            src={BRAND_LOGO}
+            alt="Rodium Cars"
+            className="h-9 w-auto rounded-sm border border-foreground/10 bg-white/90 p-1"
+          />
+          <div className="leading-none">
+            <p className="text-sm font-semibold tracking-[0.2em] text-foreground">RODIUM CARS</p>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-primary">Venda e Pré-Compra</p>
+          </div>
         </Link>
 
         {/* Desktop nav */}

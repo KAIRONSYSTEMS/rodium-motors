@@ -26,16 +26,15 @@ const HeroSection = () => {
           className="max-w-2xl"
         >
           <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
-            Compra · Venda · Intermediação · Consignação
+            Venda · Compra · Pré-Compra Especializada Consultoria · Intermediação
           </span>
           <h1 className="mt-6 text-4xl font-semibold leading-tight text-foreground md:text-6xl lg:text-7xl text-balance">
-            A curadoria definitiva para quem exige{" "}
-            <span className="gold-text">performance</span> e{" "}
-            <span className="gold-text">segurança</span>.
+            Seu próximo carro de alto padrão com 
+            <span className="gold-text"> segurança técnica</span> em cada etapa.
           </h1>
           <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground text-pretty">
-            Consultoria especializada em veículos esportivos, premium e blindados. 
-            Cada veículo do nosso acervo é selecionado com rigor e precisão.
+            Além de um acervo selecionado de esportivos, premium e blindados, prestamos serviço de 
+            pré-compra com análise criteriosa para reduzir risco e elevar confiança na decisão.
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
@@ -52,7 +51,7 @@ const HeroSection = () => {
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-foreground/10 bg-foreground/5 px-8 py-4 text-sm font-medium text-foreground transition-all hover:bg-foreground/10"
             >
-              Solicitar Atendimento
+              Solicitar Pré-Compra
             </a>
           </div>
         </motion.div>
