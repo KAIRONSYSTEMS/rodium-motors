@@ -6,6 +6,8 @@ import type { Plugin } from "vite";
 
 type EnvMap = Record<string, string | undefined>;
 
+const allowedImageSuffixes = [".r2.dev", ".supabase.co", ".cloudflarestorage.com"];
+
 const json = (res: ServerResponse, status: number, payload: unknown) => {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
@@ -52,6 +54,29 @@ const requiredEnv = [
 const missingEnv = (env: EnvMap) =>
   requiredEnv.filter((key) => !env[key]);
 
+const isAllowedImageUrl = (raw: string, env: EnvMap) => {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:") return false;
+
+    const bySuffix = allowedImageSuffixes.some((suffix) => url.hostname.endsWith(suffix));
+
+    const publicUrl = env.R2_PUBLIC_URL;
+    if (!publicUrl) return bySuffix;
+
+    let samePublicHost = false;
+    try {
+      samePublicHost = url.hostname === new URL(publicUrl).hostname;
+    } catch {
+      samePublicHost = false;
+    }
+
+    return bySuffix || samePublicHost;
+  } catch {
+    return false;
+  }
+};
+
 export const createR2UploadDevPlugin = (env: EnvMap): Plugin => {
   const missing = missingEnv(env);
 
@@ -71,7 +96,46 @@ export const createR2UploadDevPlugin = (env: EnvMap): Plugin => {
     name: "r2-upload-dev-endpoint",
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith("/api/upload")) {
+        const currentUrl = req.url || "";
+
+        if (currentUrl.startsWith("/api/image-proxy")) {
+          if (req.method !== "GET") {
+            json(res, 405, { error: "Metodo nao permitido." });
+            return;
+          }
+
+          const parsed = new URL(currentUrl, "http://localhost");
+          const encodedUrl = parsed.searchParams.get("url") || "";
+          const decodedUrl = decodeURIComponent(encodedUrl);
+
+          if (!decodedUrl || !isAllowedImageUrl(decodedUrl, env)) {
+            json(res, 400, { error: "URL de imagem inválida para proxy." });
+            return;
+          }
+
+          try {
+            const upstream = await fetch(decodedUrl);
+            if (!upstream.ok) {
+              json(res, upstream.status, { error: "Falha ao buscar imagem no servidor remoto." });
+              return;
+            }
+
+            const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+            const bytes = Buffer.from(await upstream.arrayBuffer());
+
+            res.statusCode = 200;
+            res.setHeader("Content-Type", contentType);
+            res.setHeader("Cache-Control", "public, max-age=3600");
+            res.end(bytes);
+          } catch (error) {
+            console.error("Erro no image proxy (Vite dev middleware):", error);
+            json(res, 500, { error: "Erro interno ao buscar imagem." });
+          }
+
+          return;
+        }
+
+        if (!currentUrl.startsWith("/api/upload")) {
           next();
           return;
         }

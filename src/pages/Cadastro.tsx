@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { Check, Download, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
 import Header from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import type { Car } from "@/lib/types";
@@ -134,6 +135,50 @@ const mutateWithSchemaFallback = async (
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const csvEscape = (value: unknown) => {
+  const text = String(value ?? "");
+  const escaped = text.replace(/"/g, '""');
+  return `"${escaped}"`;
+};
+
+const toPtBrDateTime = (isoDate: string) => {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return isoDate;
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const toPtBrCurrency = (value: number | null) => {
+  if (value == null) return "-";
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+};
+
+const imageUrlToDataUrl = async (url: string) => {
+  const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
+
+  let response = await fetch(proxyUrl);
+  if (!response.ok) {
+    // Fallback for environments where proxy is unavailable.
+    response = await fetch(url);
+  }
+
+  if (!response.ok) throw new Error(`Falha ao baixar imagem (${response.status})`);
+
+  const blob = await response.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Erro ao converter imagem para PDF."));
+    reader.readAsDataURL(blob);
+  });
+};
+
 const loadImageFromFile = (file: File) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -227,6 +272,7 @@ const Cadastro = () => {
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const [coverCrop, setCoverCrop] = useState<CoverCrop>(DEFAULT_COVER_CROP);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: cars, isLoading } = useQuery({
@@ -434,13 +480,13 @@ const Cadastro = () => {
         await mutateWithSchemaFallback(payload, async (safePayload) =>
           supabase
             .from("cars")
-            .update(safePayload)
+            .update(safePayload as never)
             .eq("id", editingId)
         );
         toast.success("Anúncio atualizado com sucesso!");
       } else {
         await mutateWithSchemaFallback(payload, async (safePayload) =>
-          supabase.from("cars").insert(safePayload)
+          supabase.from("cars").insert(safePayload as never)
         );
         toast.success("Anúncio criado com sucesso!");
       }
@@ -478,6 +524,195 @@ const Cadastro = () => {
     }
   };
 
+  const handleExportAds = () => {
+    if (!cars || cars.length === 0) {
+      toast.error("Não há anúncios para exportar.");
+      return;
+    }
+
+    // No schema atual não existe flag de ativo; exportamos todos os anúncios cadastrados.
+    const activeAds = cars;
+
+    const headers = [
+      "id",
+      "marca",
+      "modelo",
+      "versao",
+      "ano_fabricacao",
+      "ano_modelo",
+      "quilometragem",
+      "cor",
+      "blindado",
+      "descricao",
+      "preco",
+      "created_at",
+      "imagens",
+    ];
+
+    const rows = activeAds.map((car) => [
+      car.id,
+      car.marca,
+      car.modelo,
+      car.versao || "",
+      car.ano_fabricacao,
+      car.ano_modelo,
+      car.quilometragem,
+      car.cor || "",
+      car.blindado,
+      car.descricao || "",
+      car.preco ?? "",
+      car.created_at,
+      (car.imagens || []).join(" | "),
+    ]);
+
+    const csvContent = [
+      headers.map(csvEscape).join(","),
+      ...rows.map((row) => row.map(csvEscape).join(",")),
+    ].join("\n");
+
+    const csvWithBom = `\uFEFF${csvContent}`;
+    const blob = new Blob([csvWithBom], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const now = new Date();
+    const fileStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
+    const fileName = `rodium-cars-anuncios-ativos-${fileStamp}.csv`;
+
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+
+    toast.success(`Arquivo exportado com ${activeAds.length} anúncio(s).`);
+  };
+
+  const handleExportPdf = async () => {
+    if (!cars || cars.length === 0) {
+      toast.error("Não há anúncios para gerar PDF.");
+      return;
+    }
+
+    setGeneratingPdf(true);
+
+    try {
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      for (let i = 0; i < cars.length; i += 1) {
+        const car = cars[i];
+        if (i > 0) doc.addPage();
+
+        // Header strip
+        doc.setFillColor(17, 24, 39);
+        doc.rect(0, 0, pageWidth, 24, "F");
+
+        doc.setTextColor(248, 250, 252);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(15);
+        doc.text("RODIUM CARS", 14, 10);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text("Relatório de Anúncios", 14, 16);
+
+        doc.text(`Registro ${i + 1} de ${cars.length}`, pageWidth - 14, 16, { align: "right" });
+
+        // Body card
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(10, 30, pageWidth - 20, pageHeight - 45, 3, 3, "F");
+        doc.setDrawColor(203, 213, 225);
+        doc.roundedRect(10, 30, pageWidth - 20, pageHeight - 45, 3, 3, "S");
+
+        const imageX = pageWidth - 82;
+        const imageY = 40;
+        const imageW = 62;
+        const imageH = 46;
+
+        const primaryImage = car.imagens && car.imagens.length > 0 ? resolveImageUrl(car.imagens[0]) : "";
+        if (primaryImage) {
+          try {
+            const imgData = await imageUrlToDataUrl(primaryImage);
+            doc.addImage(imgData, "JPEG", imageX, imageY, imageW, imageH);
+            doc.setDrawColor(203, 213, 225);
+            doc.rect(imageX, imageY, imageW, imageH);
+          } catch {
+            doc.setDrawColor(148, 163, 184);
+            doc.rect(imageX, imageY, imageW, imageH);
+            doc.setTextColor(100, 116, 139);
+            doc.setFontSize(9);
+            doc.text("Imagem indisponível", imageX + imageW / 2, imageY + imageH / 2, { align: "center" });
+          }
+        } else {
+          doc.setDrawColor(148, 163, 184);
+          doc.rect(imageX, imageY, imageW, imageH);
+          doc.setTextColor(100, 116, 139);
+          doc.setFontSize(9);
+          doc.text("Sem imagem", imageX + imageW / 2, imageY + imageH / 2, { align: "center" });
+        }
+
+        doc.setTextColor(17, 24, 39);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text(`${car.marca} ${car.modelo}`, 16, 42);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        if (car.versao) {
+          doc.text(`Versão: ${car.versao}`, 16, 49);
+        }
+
+        const details: Array<[string, string]> = [
+          ["ID", car.id],
+          ["Ano", `${car.ano_fabricacao}/${car.ano_modelo}`],
+          ["Quilometragem", `${car.quilometragem.toLocaleString("pt-BR")} km`],
+          ["Cor", car.cor || "-"],
+          ["Blindado", car.blindado ? "Sim" : "Não"],
+          ["Preço", toPtBrCurrency(car.preco)],
+          ["Criado em", toPtBrDateTime(car.created_at)],
+          ["Qtd. de imagens", String(car.imagens?.length || 0)],
+        ];
+
+        let lineY = 60;
+        for (const [label, value] of details) {
+          doc.setFont("helvetica", "bold");
+          doc.text(`${label}:`, 16, lineY);
+          doc.setFont("helvetica", "normal");
+          doc.text(value, 48, lineY);
+          lineY += 8;
+        }
+
+        if (car.descricao) {
+          doc.setFont("helvetica", "bold");
+          doc.text("Descrição:", 16, lineY + 4);
+          doc.setFont("helvetica", "normal");
+
+          const wrappedDesc = doc.splitTextToSize(car.descricao, pageWidth - 32);
+          doc.text(wrappedDesc, 16, lineY + 10);
+        }
+
+        const imageLinks = (car.imagens || []).map((img) => resolveImageUrl(img)).join(" | ");
+        const wrappedImages = doc.splitTextToSize(`Imagens: ${imageLinks || "-"}`, pageWidth - 32);
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text(wrappedImages, 16, pageHeight - 14);
+      }
+
+      const now = new Date();
+      const fileStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
+      doc.save(`rodium-cars-anuncios-${fileStamp}.pdf`);
+      toast.success(`PDF gerado com ${cars.length} anúncio(s).`);
+    } catch (error) {
+      const message = extractSupabaseErrorMessage(error);
+      toast.error(`Erro ao gerar PDF: ${message}`);
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   const inputClass =
     "w-full rounded-lg border border-foreground/10 bg-secondary px-4 py-3 text-sm text-foreground placeholder-muted-foreground outline-none focus:ring-1 focus:ring-primary";
 
@@ -499,6 +734,33 @@ const Cadastro = () => {
           <p className="mt-3 text-sm text-muted-foreground">
             Formulário completo com todos os campos da tabela cars e upload direto para R2 (até {MAX_IMAGES} fotos por anúncio).
           </p>
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleExportAds}
+                className="inline-flex items-center gap-2 rounded-lg border border-foreground/10 bg-secondary px-4 py-2.5 text-xs font-medium uppercase tracking-widest text-foreground transition-colors hover:bg-secondary/70"
+              >
+                <Download size={15} /> Exportar anúncios ativos (.csv)
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                disabled={generatingPdf}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-all hover:brightness-110 disabled:opacity-60"
+              >
+                {generatingPdf ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" /> Carregando PDF...
+                  </>
+                ) : (
+                  <>
+                    <Download size={15} /> Gerar PDF profissional
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
 
           <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
             <section className="rounded-xl border border-foreground/10 bg-secondary/30 p-5 md:p-7">
